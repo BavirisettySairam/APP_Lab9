@@ -24,6 +24,10 @@ try:
     # Convert PySpark DataFrame to Pandas for visualization
     pandas_df = df.toPandas()
 
+    # Define numeric & categorical columns globally
+    numeric_cols = pandas_df.select_dtypes(include=['number']).columns.tolist()
+    categorical_cols = pandas_df.select_dtypes(exclude=['number']).columns.tolist()
+
     if page == "🏠 Overview":
         st.title("🏠 Dataset Overview")
         
@@ -46,41 +50,46 @@ try:
     elif page == "📊 Visualizations":
         st.title("📊 Exploratory Data Analysis")
 
-        # Numeric & Categorical Columns
-        numeric_cols = pandas_df.select_dtypes(include=['number']).columns.tolist()
-        categorical_cols = pandas_df.select_dtypes(exclude=['number']).columns.tolist()
-
         with st.container():
             st.subheader("📊 Feature Distributions")
-            selected_num = st.sidebar.selectbox("Select numeric feature", numeric_cols)
-            
-            fig, ax = plt.subplots(figsize=(8, 4))
-            sns.histplot(pandas_df[selected_num], kde=True, bins=30, ax=ax)
-            ax.set_title(f"Distribution of {selected_num}")
-            st.pyplot(fig)
+            if numeric_cols:
+                selected_num = st.sidebar.selectbox("Select numeric feature", numeric_cols)
+
+                fig, ax = plt.subplots(figsize=(8, 4))
+                sns.histplot(pandas_df[selected_num], kde=True, bins=30, ax=ax)
+                ax.set_title(f"Distribution of {selected_num}")
+                st.pyplot(fig)
+            else:
+                st.warning("⚠️ No numeric columns found in the dataset.")
 
         with st.container():
             st.subheader("🛠 Categorical Feature Analysis")
-            selected_cat = st.sidebar.selectbox("Select categorical feature", categorical_cols)
+            if categorical_cols:
+                selected_cat = st.sidebar.selectbox("Select categorical feature", categorical_cols)
 
-            fig, ax = plt.subplots(figsize=(8, 4))
-            sns.countplot(data=pandas_df, x=selected_cat, order=pandas_df[selected_cat].value_counts().index, ax=ax)
-            ax.set_title(f"Count Plot of {selected_cat}")
-            plt.xticks(rotation=45)
-            st.pyplot(fig)
+                fig, ax = plt.subplots(figsize=(8, 4))
+                sns.countplot(data=pandas_df, x=selected_cat, order=pandas_df[selected_cat].value_counts().index, ax=ax)
+                ax.set_title(f"Count Plot of {selected_cat}")
+                plt.xticks(rotation=45)
+                st.pyplot(fig)
+            else:
+                st.warning("⚠️ No categorical columns found in the dataset.")
 
     elif page == "📈 Correlation Analysis":
         st.title("📈 Correlation Matrix")
 
         with st.container():
-            selected_corr_cols = st.multiselect("Select columns for correlation matrix", numeric_cols, default=numeric_cols[:5])
+            if numeric_cols:
+                selected_corr_cols = st.multiselect("Select columns for correlation matrix", numeric_cols, default=numeric_cols[:5])
 
-            if len(selected_corr_cols) > 1:
-                fig, ax = plt.subplots(figsize=(10, 6))
-                sns.heatmap(pandas_df[selected_corr_cols].corr(), annot=True, cmap="coolwarm", fmt=".2f", ax=ax)
-                st.pyplot(fig)
+                if len(selected_corr_cols) > 1:
+                    fig, ax = plt.subplots(figsize=(10, 6))
+                    sns.heatmap(pandas_df[selected_corr_cols].corr(), annot=True, cmap="coolwarm", fmt=".2f", ax=ax)
+                    st.pyplot(fig)
+                else:
+                    st.warning("⚠️ Please select at least two numeric columns.")
             else:
-                st.warning("⚠️ Please select at least two numeric columns.")
+                st.warning("⚠️ No numeric columns available for correlation analysis.")
 
     st.success("✅ EDA Completed Successfully!")
 
@@ -89,3 +98,5 @@ except Exception as e:
     st.info("Make sure 'bigdata.csv' is present in the working directory.")
 
 # Run with: streamlit run lab9.py
+
+
