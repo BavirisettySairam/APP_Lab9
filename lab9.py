@@ -1,81 +1,72 @@
 import streamlit as st
-from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, mean, count, when
-from pyspark.mllib.stat import Statistics
 import pandas as pd
-import matplotlib.pyplot as plt
 import seaborn as sns
-import time
-import os
-os.environ["JAVA_HOME"] = "/usr/lib/jvm/java-11-openjdk-amd64"
+import matplotlib.pyplot as plt
+from pyspark.sql import SparkSession
 
 # Initialize Spark session
 spark = SparkSession.builder.appName("BigData_EDA").getOrCreate()
 
-# Load dataset
-rdd = spark.sparkContext.textFile("bigdata.csv")
+# Streamlit App UI Configuration
+st.set_page_config(page_title="Big Data EDA", layout="wide")
 
-# Remove header
-header = rdd.first()
-rdd = rdd.filter(lambda row: row != header)
+# App Title
+st.title("📊 Big Data EDA with PySpark & Streamlit")
 
-def parse_row(row):
-    parts = row.split(",")
-    try:
-        return (int(parts[0]), parts[1], int(parts[2]) if parts[2] else None, 
-                float(parts[3]) if parts[3] else None, int(parts[4]), parts[5])
-    except:
-        return None
+# Hardcoded file path
+file_path = "bigdata.csv"
 
-rdd = rdd.map(parse_row).filter(lambda x: x is not None)
-columns = ["ID", "Name", "Age", "Salary", "Experience", "Department"]
-df = spark.createDataFrame(rdd, columns)
+try:
+    # Load CSV into PySpark DataFrame
+    df = spark.read.csv(file_path, header=True, inferSchema=True)
+    
+    # Convert PySpark DataFrame to Pandas for visualization
+    pandas_df = df.toPandas()
 
-# Handling missing values
-age_mean = df.select(mean(col("Age"))).collect()[0][0]
-salary_mean = df.select(mean(col("Salary"))).collect()[0][0]
-df = df.fillna({"Age": age_mean, "Salary": salary_mean})
+    # Display dataset overview
+    st.subheader("🔍 Dataset Preview")
+    st.write(pandas_df.head())
 
-# Convert to Pandas for Streamlit visualization
-pandas_df = df.toPandas()
+    # Show dataset information
+    st.subheader("📌 Data Summary")
+    st.write(pandas_df.describe())
 
-# Streamlit App
-st.title("Big Data EDA - Employee Dataset 🎉")
-st.write("Lab Program 9 - Done by Bavirisetty Sairam (2447115)")
+    # Column Selection for Correlation Heatmap
+    st.subheader("📈 Correlation Matrix")
 
-# Interactive Effects
-if st.button("Celebrate with Balloons! 🎈"):
-    st.balloons()
-if st.button("Let it Snow! ❄️"):
-    st.snow()
+    # Select only numeric columns
+    numeric_df = pandas_df.select_dtypes(include=['number'])
 
-st.subheader("Dataset Overview")
-st.write(pandas_df.head())
+    if numeric_df.shape[1] > 0:
+        selected_columns = st.multiselect("Select columns for correlation matrix", numeric_df.columns, default=numeric_df.columns.tolist())
 
-st.subheader("Missing Values")
-missing_data = pandas_df.isnull().sum()
-st.write(missing_data)
+        if selected_columns:
+            # Interactive Heatmap
+            fig, ax = plt.subplots(figsize=(10, 6))
+            sns.heatmap(numeric_df[selected_columns].corr(), annot=True, cmap="coolwarm", fmt=".2f", ax=ax)
+            st.pyplot(fig)
+        else:
+            st.warning("⚠️ Please select at least one numeric column.")
 
-st.subheader("Summary Statistics")
-st.write(pandas_df.describe())
+    else:
+        st.warning("❌ No numeric columns found for correlation analysis.")
 
-# Correlation Heatmap
-st.subheader("Correlation Heatmap")
-plt.figure(figsize=(6, 4))
-sns.heatmap(pandas_df.corr(), annot=True, cmap='coolwarm', fmt='.2f')
-st.pyplot(plt)
+    # Display column data types
+    st.subheader("🔢 Column Data Types")
+    st.write(pandas_df.dtypes)
 
-# Salary Distribution
-st.subheader("Salary Distribution")
-plt.figure(figsize=(6, 4))
-sns.histplot(pandas_df['Salary'], kde=True, bins=20)
-st.pyplot(plt)
+    # Missing Values Check
+    st.subheader("⚠️ Missing Values")
+    st.write(pandas_df.isnull().sum())
 
-# Department-wise Salary Analysis
-st.subheader("Department-wise Salary")
-plt.figure(figsize=(6, 4))
-sns.boxplot(x='Department', y='Salary', data=pandas_df)
-st.pyplot(plt)
+    # Dataset Shape
+    st.subheader("📏 Dataset Shape")
+    st.write(f"Rows: {pandas_df.shape[0]}, Columns: {pandas_df.shape[1]}")
 
-# Stop Spark
-spark.stop()
+    st.success("✅ EDA Completed Successfully!")
+
+except Exception as e:
+    st.error(f"❌ Error loading dataset: {e}")
+    st.info("Make sure 'bigdata.csv' is present in the working directory.")
+
+# Run with: streamlit run lab9.py
